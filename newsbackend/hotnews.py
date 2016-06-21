@@ -1,9 +1,8 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
+# -*- coding: ISO8859-1 -*-
 ''' prepares news feed for eink devies '''
 
-import threading
-import urllib
+from random import choice
 from HTMLParser import HTMLParser
 from PIL import Image, ImageDraw, ImageFont
 from bottle import route, run, static_file
@@ -16,8 +15,9 @@ RSS_FEEDS = [
 ]
 WIDTH = 200
 HEIGHT = 96
-FONTSIZE =12
-FONT = ImageFont.truetype("res/FreeMonoBold.ttf", FONTSIZE)
+FONTSIZE = 8
+#FONT = ImageFont.truetype("res/Minecraftia-Regular.ttf", FONTSIZE)
+FONT = ImageFont.load("res/pilfonts/charR08.pil")
 XOFFSET = 2
 YOFFSET = 2
 
@@ -28,9 +28,9 @@ def addTextToImage(text):
     height = YOFFSET
     for h in range(0, len(text)):
         draw_txt = text[h]
-        (_, theight) = FONT.getsize(draw_txt)
+        #(_, theight) = FONT.getsize(draw_txt)
         draw.text((XOFFSET, height), draw_txt, 255, font=FONT)
-        height += theight + 2
+        height += 10
     return image
 
 
@@ -40,7 +40,8 @@ def splitText(text):
     line_txt = []
     start = 0
     for i in range(0, len(txt_array) + 1):
-        (tlength, _) = FONT.getsize(' '.join(txt_array[start:i]))
+        #(tlength, _) = FONT.getsize(' '.join(txt_array[start:i]))
+        tlength = len(' '.join(txt_array[start:i])) * 5
         if tlength > WIDTH - XOFFSET:
             utmp = ' '.join(txt_array[start:i - 1])
             line_txt.append(utmp)
@@ -54,7 +55,8 @@ def splitText(text):
 def convertHtml(text):
     ''' unescapes html codes '''
     h = HTMLParser()
-    return h.unescape(text)
+    txt = h.unescape(text).encode('ISO8859-1')
+    return h.unescape(txt)
 
 class NewsAggregator(object):
     newsfeeds = []
@@ -69,31 +71,38 @@ class NewsAggregator(object):
             newsfeed = parse(feed)
             self.newsfeeds.append(newsfeed)
 
-        transfermarkt = self.newsfeeds[0]['items'][0]['title']
-        bz = self.newsfeeds[1]['entries'][0]['title']
-        bild = self.newsfeeds[2]['entries'][0]['title']
+        transfermarkt = choice(self.newsfeeds[0]['items'])['title']
+        bz = choice(self.newsfeeds[1]['entries'])['title']
+        bild = choice(self.newsfeeds[2]['entries'])['title']
 
         transfermarkt_txt = convertHtml(transfermarkt)
         bz_txt = convertHtml(bz)
         bild_txt = convertHtml(bild)
 
         # @future me, please clean this mess up :P
-        line_txt = ['transfermarkt:','','']
+        #line_txt = ['transfermarkt:','','']
+        line_txt = ['transfermarkt:']
         line_txt.extend(splitText(transfermarkt_txt))
-        line_txt.extend(['','','','', 'BZ:','',''])
+        #line_txt.extend(['','','','', 'BZ:','',''])
+        line_txt.extend(['BZ:'])
         line_txt.extend(splitText(bz_txt))
-        line_txt.extend(['','','','', 'Bild:','',''])
+        #line_txt.extend(['','','','', 'Bild:','',''])
+        line_txt.extend(['Bild:'])
         line_txt.extend(splitText(bild_txt))
 
 
         self.image = addTextToImage(line_txt)
         self.image.save("output.xbm", "XBM")
+        with open('output.xbm') as inp, open('outputcrlf.xbm', 'w') as out:
+            txt = inp.read()
+            txt = txt.replace('\n', '\r\n')
+            out.write(txt)
 
 NEWS = NewsAggregator()
 @route('/news')
 def getnews():
     NEWS.updateImage()
-    return static_file("output.xbm",
+    return static_file("outputcrlf.xbm",
                        root=".",
                        mimetype='image/xbm')
 
